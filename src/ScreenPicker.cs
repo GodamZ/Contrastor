@@ -265,7 +265,7 @@ internal sealed class PickerOverlay : Form
     {
         AutoSize = true, BackColor = SystemColors.Window, ForeColor = SystemColors.WindowText,
         Padding = new Padding(8), LiveSetting = AutomationLiveSetting.Polite,
-        Text = "Flèches pour déplacer · Espace pour lire · Entrée pour choisir · Échap pour annuler"
+        Text = "Flèches pour déplacer, Espace pour lire, Entrée pour choisir, Échap pour annuler"
     };
 
     internal PickerOverlay(ScreenPicker picker, Rectangle bounds, Bitmap image)

@@ -58,14 +58,15 @@ internal sealed class MainWindow : Form
     private readonly Button copy = new Button();
     private readonly VerdictLabel[] verdicts = new VerdictLabel[5];
     private readonly Timer resultAnnouncement = new Timer { Interval = 600 };
-    private readonly Button read = new Button { Text = "&Lire les résultats", AutoSize = true };
     private string summary;
     private ScreenPicker picker;
-    private readonly string[] criteria = {
-        "1.4.3 AA · Texte courant", "1.4.3 AA · Grand texte",
-        "1.4.6 AAA · Texte courant", "1.4.6 AAA · Grand texte",
-        "1.4.11 AA · Composants et éléments graphiques"
+    private static readonly string[] Criteria = { "1.4.3 AA", "1.4.3 AA", "1.4.6 AAA", "1.4.6 AAA", "1.4.11 AA" };
+    private static readonly string[] Categories = {
+        "Texte courant", "Grand texte", "Texte courant", "Grand texte", "Composants et graphiques"
     };
+    private const string ReportRow = "{0,-10} | {1,-24} | {2,-7} | {3}";
+    private const string LargeText = "Un texte est considéré comme grand à partir de 18 pt (24 px), ou de 14 pt (environ 18,67 px) s’il est en gras.";
+    private static readonly CultureInfo French = CultureInfo.GetCultureInfo("fr-FR");
     private readonly double[] thresholds = { 4.5, 3, 7, 4.5, 3 };
 
     private string report;
@@ -114,13 +115,10 @@ internal sealed class MainWindow : Form
         };
         actions.Controls.Add(swap);
         actions.Controls.Add(copy);
-        read.AccessibleDescription = "Ouvre le rapport détaillé. Raccourci Contrôle plus R.";
-        read.Click += delegate { ReadResults(); };
-        actions.Controls.Add(read);
         AddRow(layout, actions);
 
         preview.AccessibleName = "Aperçu visuel des couleurs";
-        preview.Text = "Aperçu du texte · Aa";
+        preview.Text = "Aperçu du texte (Aa)";
         preview.TextAlign = ContentAlignment.MiddleCenter;
         preview.Font = new Font(Font.FontFamily, 15);
         preview.BorderStyle = BorderStyle.FixedSingle;
@@ -134,13 +132,24 @@ internal sealed class MainWindow : Form
         AddRow(layout, ratio);
         AddRow(layout, new Label { Text = "Résultats WCAG 2.2", AutoSize = true,
             Font = new Font(Font, FontStyle.Bold), Margin = new Padding(0, 2, 0, 3) });
-        for (int i = 0; i < verdicts.Length; i++)
+        var results = CreateResultsTable();
+        AddRow(layout, results);
+
+        var note = new RichTextBox
         {
-            verdicts[i] = new VerdictLabel { AutoSize = true, Padding = new Padding(23, 0, 0, 0), Margin = new Padding(0, 2, 0, 2) };
-            AddRow(layout, verdicts[i]);
-        }
-        AddRow(layout, new Label { Text = "Grand texte : au moins 18 pt, ou 14 pt en gras.",
-            AutoSize = true, Margin = new Padding(0, 8, 0, 0) });
+            Text = LargeText, AccessibleName = "Définition du grand texte", ReadOnly = true,
+            TabStop = false, ScrollBars = RichTextBoxScrollBars.None, Dock = DockStyle.Top,
+            BorderStyle = BorderStyle.None, BackColor = SystemColors.Control, ForeColor = SystemColors.ControlText,
+            Margin = new Padding(0, 8, 0, 0)
+        };
+        note.ContentsResized += delegate(object sender, ContentsResizedEventArgs e)
+        {
+            int height = e.NewRectangle.Height + note.Font.Height / 4;
+            if (height > 0 && note.Height != height)
+                note.Height = height;
+        };
+        AddRow(layout, note);
+        Shown += delegate { EmphasizeLargeText(note); };
 
         status.AutoSize = true;
         status.Margin = new Padding(0, 10, 0, 0);
@@ -162,7 +171,81 @@ internal sealed class MainWindow : Form
         };
         FormClosed += delegate { resultAnnouncement.Dispose(); };
         UpdateResults();
-        status.Text = summary;
+    }
+
+    private static void EmphasizeLargeText(RichTextBox text)
+    {
+        int start = text.Text.IndexOf(LargeText, StringComparison.Ordinal);
+        using (var emphasis = new Font(text.Font, FontStyle.Bold))
+        {
+            foreach (string phrase in new[] { "grand", "18 pt (24 px)", "14 pt (environ 18,67 px)", "en gras" })
+            {
+                text.Select(start + LargeText.IndexOf(phrase, StringComparison.Ordinal), phrase.Length);
+                text.SelectionFont = emphasis;
+            }
+        }
+        text.Select(0, 0);
+    }
+
+    private TableLayoutPanel CreateResultsTable()
+    {
+        var table = new TableLayoutPanel
+        {
+            ColumnCount = 4, RowCount = verdicts.Length + 1, AutoSize = true, Dock = DockStyle.Top,
+            AccessibleName = "Seuils WCAG 2.2", AccessibleRole = AccessibleRole.Table,
+            CellBorderStyle = TableLayoutPanelCellBorderStyle.Single
+        };
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+
+        var headingFont = new Font(Font, FontStyle.Bold);
+        table.Disposed += delegate { headingFont.Dispose(); };
+        string[] headings = { "Critère", "Élément", "Seuil", "Verdict" };
+        var categoryCells = new Label[Categories.Length];
+        for (int column = 0; column < headings.Length; column++)
+        {
+            Label heading = TableCell(headings[column]);
+            heading.Font = headingFont;
+            table.Controls.Add(heading, column, 0);
+        }
+        for (int i = 0; i < verdicts.Length; i++)
+        {
+            table.Controls.Add(TableCell(Criteria[i]), 0, i + 1);
+            categoryCells[i] = TableCell(Categories[i]);
+            table.Controls.Add(categoryCells[i], 1, i + 1);
+            table.Controls.Add(TableCell(FormatRatio(thresholds[i], "0.#")), 2, i + 1);
+            verdicts[i] = new VerdictLabel { AutoSize = true, Padding = new Padding(23, 0, 0, 0),
+                Margin = new Padding(5, 4, 5, 4), Anchor = AnchorStyles.Left };
+            table.Controls.Add(verdicts[i], 3, i + 1);
+        }
+        table.Layout += delegate
+        {
+            int verdictWidth = table.ClientSize.Width < 370 ? 96 : 0;
+            foreach (VerdictLabel verdict in verdicts)
+                if (verdict.MaximumSize.Width != verdictWidth)
+                    verdict.MaximumSize = new Size(verdictWidth, 0);
+            int[] widths = table.GetColumnWidths();
+            if (widths.Length < 2)
+                return;
+            int width = Math.Max(1, widths[1] - 12);
+            foreach (Label cell in categoryCells)
+                if (cell.MaximumSize.Width != width)
+                    cell.MaximumSize = new Size(width, 0);
+        };
+        return table;
+    }
+
+    private static Label TableCell(string text)
+    {
+        return new Label { Text = text, AutoSize = true, Anchor = AnchorStyles.Left,
+            Margin = new Padding(5, 4, 5, 4) };
+    }
+
+    private static string FormatRatio(double value, string format)
+    {
+        return value.ToString(format, French) + ":1";
     }
 
     private static void AddRow(TableLayoutPanel layout, Control control)
@@ -200,35 +283,6 @@ internal sealed class MainWindow : Form
         resultAnnouncement.Start();
     }
 
-    protected override bool ProcessCmdKey(ref Message message, Keys key)
-    {
-        if (key == (Keys.Control | Keys.R))
-        {
-            ReadResults();
-            return true;
-        }
-        return base.ProcessCmdKey(ref message, key);
-    }
-
-    private void ReadResults()
-    {
-        using (var dialog = new Form { Text = "Résultats WCAG 2.2", Font = Font,
-            StartPosition = FormStartPosition.CenterParent, ShowInTaskbar = false,
-            ClientSize = new Size(590, 285), MinimumSize = new Size(300, 200), AutoScaleMode = AutoScaleMode.Dpi })
-        {
-            var close = new Button { Text = "&Fermer", AutoSize = true, DialogResult = DialogResult.Cancel, Dock = DockStyle.Bottom };
-            var details = new TextBox { AccessibleName = "Rapport de contraste", ReadOnly = true, Multiline = true,
-                WordWrap = true, ScrollBars = ScrollBars.Vertical, Dock = DockStyle.Fill,
-                BackColor = SystemColors.Window, ForeColor = SystemColors.WindowText, Text = report, TabIndex = 0 };
-            close.TabIndex = 1;
-            dialog.Controls.Add(details);
-            dialog.Controls.Add(close);
-            dialog.CancelButton = close;
-            dialog.ActiveControl = details;
-            dialog.ShowDialog(this);
-        }
-    }
-
     protected override void OnSystemColorsChanged(EventArgs e)
     {
         base.OnSystemColorsChanged(e);
@@ -247,30 +301,36 @@ internal sealed class MainWindow : Form
         preview.ForeColor = showColors ? first : SystemColors.WindowText;
         preview.BackColor = showColors ? second : SystemColors.Window;
         copy.Enabled = valid;
-        string invalidField = !firstValid && !secondValid ? "premier plan et arrière-plan"
-            : !firstValid ? "premier plan" : "arrière-plan";
+        string invalidField = !firstValid && !secondValid ? "le premier plan et l’arrière-plan"
+            : !firstValid ? "le premier plan" : "l’arrière-plan";
         double value = valid ? Contrast.Ratio(first, second) : 0;
-        ratio.Text = valid ? value.ToString("0.00000", CultureInfo.GetCultureInfo("fr-FR")) + " : 1"
-            : "Hexadécimal invalide · " + invalidField;
+        ratio.Text = valid ? FormatRatio(Math.Floor(value * 10) / 10, "0.0")
+            : "Valeur hexadécimale invalide pour " + invalidField;
         var lines = new System.Collections.Generic.List<string>();
         int passedCount = 0;
         if (valid)
         {
             lines.Add("Contraste WCAG 2.2 — " + Contrast.Hex(first) + " sur " + Contrast.Hex(second));
-            lines.Add("Ratio calculé " + value.ToString("G17", CultureInfo.GetCultureInfo("fr-FR")) + " : 1");
+            lines.Add("Ratio " + ratio.Text);
         }
+        lines.Add(string.Empty);
+        lines.Add(string.Format(ReportRow, "Critère", "Élément", "Seuil", "Verdict"));
+        lines.Add("-----------+--------------------------+---------+-------------");
         for (int i = 0; i < verdicts.Length; i++)
         {
-            string threshold = thresholds[i].ToString("0.0", CultureInfo.GetCultureInfo("fr-FR"));
+            string threshold = FormatRatio(thresholds[i], "0.#");
             bool? passed = valid ? (bool?)(value >= thresholds[i]) : null;
             if (passed == true)
                 passedCount++;
             string outcome = !passed.HasValue ? "À évaluer" : passed.Value ? "Conforme" : "Non conforme";
-            verdicts[i].SetVerdict(criteria[i] + " · " + threshold + " : 1 · " + outcome, passed);
-            lines.Add(verdicts[i].Text);
+            verdicts[i].SetVerdict(outcome, passed);
+            verdicts[i].AccessibleName = Criteria[i] + ", " + Categories[i] + ", seuil " + threshold + ", " + outcome;
+            lines.Add(string.Format(ReportRow, Criteria[i], Categories[i], threshold, outcome));
         }
         if (!valid)
             lines.Insert(0, ratio.Text + ". Formats acceptés : #RGB ou #RRGGBB.");
+        lines.Add(string.Empty);
+        lines.Add(LargeText);
         report = string.Join(Environment.NewLine, lines);
         summary = valid ? "Ratio " + ratio.Text + ". Seuils atteints : " + passedCount + " sur 5."
             : ratio.Text + ". Formats acceptés : #RGB ou #RRGGBB.";
@@ -317,7 +377,7 @@ internal sealed class MainWindow : Form
             string hex = Contrast.Hex(color.Value);
             field.Text = hex;
             resultAnnouncement.Stop();
-            status.Text = "Couleur prélevée " + hex + ". " + summary;
+            status.Text = string.Empty;
         }
         else
         {

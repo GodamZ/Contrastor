@@ -13,8 +13,8 @@ Contrastor works offline and requires .NET Framework 4.8 or later. Windows 10 ve
 
 1. Enter the foreground and background colors as `#RGB` or `#RRGGBB`. The leading `#` is optional.
 2. To sample a color, position the windows you want to audit across your displays, then activate the eyedropper for the relevant field. Contrastor hides itself and freezes the visible desktop. Center the circular magnifier on the target pixel and click or press **Enter** to select it. The arrow keys move the crosshair one physical pixel at a time. Press **Space** to display the current hex code and pixel coordinates and announce them to a screen reader. Press **Esc** or right-click to cancel.
-3. Read the contrast ratio and verdicts. A green check mark means pass, a red cross means fail, and a dash means the result is pending valid input. In Windows high contrast mode, the icons use system colors and keep their distinct shapes.
-4. Select **Lire les résultats** (Read results) or press **Ctrl+R** to open the selectable text report. Press **Esc** to close it. Select **Copier le résultat** (Copy result) to copy the report for an audit.
+3. Read the contrast ratio and the verdict table. A green check mark means pass, a red cross means fail, and a dash means the result is pending valid input. In Windows high contrast mode, the icons use system colors and keep their distinct shapes.
+4. Select **Copier le résultat** (Copy result) to copy the report for an audit.
 
 The eyedropper samples the rendered screen pixel. For antialiased web text, use the effective CSS colors when available. For translucent layers, measure the composited colors against the relevant background. Each verdict tells you whether the color pair meets the threshold for that category.
 
@@ -24,11 +24,11 @@ The eyedropper samples the rendered screen pixel. For antialiased web text, use 
 | 1.4.6 Contrast (Enhanced), AAA | 7:1 | 4.5:1 | |
 | 1.4.11 Non-text Contrast, AA | | | 3:1 |
 
-Large text is at least 18 pt, or at least 14 pt when bold. Verdicts use the ratio before rounding. [W3C Web Content Accessibility Guidelines (WCAG) 2.2](https://www.w3.org/TR/WCAG22/)
+Large text is at least **18 pt (24 CSS px)**, or at least **14 pt (about 18.67 CSS px)** when bold. The displayed ratio is truncated to one decimal place. Verdicts use the full calculated ratio. [W3C Web Content Accessibility Guidelines (WCAG) 2.2](https://www.w3.org/TR/WCAG22/)
 
 ## Keyboard and screen reader access
 
-**Tab** and **Shift+Tab** move between fields and buttons. **Alt+P** moves to the foreground field and **Alt+A** moves to the background field. After a short pause following a color edit, the app sends the ratio summary or input error to the screen reader. You can complete a contrast check with the keyboard using two known hex colors and open the report with **Ctrl+R**. The eyedropper can announce the current pixel and its coordinates. Locating an arbitrary element in the captured image remains a visual task.
+**Tab** and **Shift+Tab** move between fields and buttons. **Alt+P** moves to the foreground field and **Alt+A** moves to the background field. After a short pause following a color edit, the app sends the ratio summary or input error to the screen reader. You can complete a contrast check with the keyboard using two known hex colors. The eyedropper can announce the current pixel and its coordinates. Locating an arbitrary element in the captured image remains a visual task.
 
 ## Building from source
 
